@@ -1,42 +1,38 @@
-# Must be run from directory containing household_power_consumption.txt
-datafile <- "household_power_consumption.txt"
-if (!file.exists(datafile)) stop(paste("Didn't find data file", datafile))
+require(data.table)
 
-# The data is in a ; separated file with ? for NA
-col.class <- c("character", "character", "numeric", "numeric", "numeric", "numeric",
-               "numeric", "numeric", "numeric")
-data <- read.table(datafile, sep=";", header=TRUE,
-                   colClasses=col.class, na.strings="?",
-                   nrows=2075260)
+### Download & unzip data
+dataURL <- "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2Fhousehold_power_consumption.zip"
+download.file(dataURL, "./tmp.zip")
+unzip("./tmp.zip")
+file.remove("./tmp.zip")
 
-# select desired dates
-data <- subset(data, Date=="1/2/2007" | Date=="2/2/2007")
+### Read data
+# Get headers (because skip used later)
+header <- scan("./household_power_consumption.txt", what = character(), nlines = 1, quiet = TRUE)
+header <- strsplit(header, ";")
 
-data$Date.Time <- strptime(paste(data$Date, data$Time),
-                           format="%d/%m/%Y %H:%M:%S")
+# Read data with filter those w/ desired dates
+data <- fread("./household_power_consumption.txt", sep=";", header=FALSE, na.strings="?", skip = 66600, nrows = 4000)
+setnames(data, header[[1]])
+remove(header)
+data <- subset(data, Date == '1/2/2007' | Date == '2/2/2007')
 
-# Plot
-png(filename="plot4.png", width=480, height=480)
-par(mfrow=c(2,2))
+# Merge date & time into single column
+dateTime <- as.POSIXct(paste(data$Date, data$Time, sep = ";"), format = "%d/%m/%Y;%H:%M:%S")
+data$Date <- NULL
+data$Time <- NULL
+data <- cbind("DateTime" = dateTime, data)
+remove(dateTime)
 
-plot(data$Date.Time, data$Global_active_power, xlab="",
-     ylab="Global Active Power", main="", type="n")
-lines(data$Date.Time, data$Global_active_power, col="black")
-
-plot(data$Date.Time, data$Voltage, xlab="datetime",
- ylab="Voltage", main="", type="n")
-lines(data$Date.Time, data$Voltage, col="black")
-
-plot(data$Date.Time, data$Sub_metering_1, xlab="",
-     ylab="Energy sub metering", main="", type="n")
-lines(data$Date.Time, data$Sub_metering_1, col="black")
-lines(data$Date.Time, data$Sub_metering_2, col="red")
-lines(data$Date.Time, data$Sub_metering_3, col="blue")
-legend("topright", c("Sub_metering_1", "Sub_metering_2", "Sub_metering_3"),
-       col=c("black","red","blue"), lty=1, bty="n")
-
-plot(data$Date.Time, data$Global_reactive_power, xlab="datetime",
-     ylab="Global_reactive_power", main="", type="n")
-lines(data$Date.Time, data$Global_reactive_power, col="black")
-
+### Plot graph
+png(filename = "plot4.png", width = 480, height = 480, units = "px", bg = "transparent")
+par(mfrow = c(2,2))
+plot(data$DateTime, data$Global_active_power, type = "l", xlab = "", ylab = "Global Active Power")
+plot(data$DateTime, data$Voltage, type = "l", xlab = "datetime", ylab = "Voltage")
+plot(data$DateTime, data$Sub_metering_1, type = "l", col = "black", xlab = "", ylab = "Energy sub metering")
+lines(data$DateTime, data$Sub_metering_2, type = "l", col = "red")
+lines(data$DateTime, data$Sub_metering_3, type = "l", col = "blue")
+legend("topright", c("Sub_metering_1", "Sub_metering_2", "Sub_metering_3"), lty = c(1,1,1), 
+	   col = c("black", "red", "blue"), border = "transparent")
+plot(data$DateTime, data$Global_reactive_power, type = "l", xlab  = "datetime", ylab = "Global_reactive_power", lwd = 0.5)
 dev.off()
